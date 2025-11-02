@@ -112,9 +112,9 @@ const SUPPORTED_BY_DAY_WEEKLY = [
 	'SA',
 ]
 
-const SUPPORTED_BY_MONTHDAY_MONTHLY = [...Array(31).keys().map((i) => i + 1)]
+const SUPPORTED_BY_MONTHDAY_MONTHLY = Array.from({ length: 31 }, (_, i) => i + 1)
 
-const SUPPORTED_BY_MONTH_YEARLY = [...Array(12).keys().map((i) => i + 1)]
+const SUPPORTED_BY_MONTH_YEARLY = Array.from({ length: 12 }, (_, i) => i + 1)
 
 /**
  * Maps a daily calendar-js recurrence-rule-value to an recurrence-rule-object

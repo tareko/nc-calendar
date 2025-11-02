@@ -129,7 +129,6 @@
 import type { ProposalDate } from '@/models/proposals/proposals'
 
 import { t } from '@nextcloud/l10n'
-import moment from '@nextcloud/moment'
 import CreateIcon from 'vue-material-design-icons/CalendarOutline'
 import VoteYesIcon from 'vue-material-design-icons/Check'
 import VoteNoIcon from 'vue-material-design-icons/Close'
@@ -140,6 +139,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import { Proposal, ProposalResponse } from '@/models/proposals/proposals'
 import { ProposalDateVote } from '@/types/proposals/proposalEnums'
+import { formatTimeRange, getMomentInTimezone } from '@/utils/timezone'
 
 export default {
 	name: 'ProposalResponseMatrix',
@@ -181,12 +181,11 @@ export default {
 		'date-vote',
 	],
 
-	data() {
-		return {
-			ProposalDateVote,
-			timezoneOffset: 0,
-		}
-	},
+        data() {
+                return {
+                        ProposalDateVote,
+                }
+        },
 
 	computed: {
 		datesGrouped() {
@@ -203,18 +202,19 @@ export default {
 			const groups = {}
 			dates.forEach((d) => {
 				// Apply timezone offset for grouping by day
-				const key = d.date ? moment(d.date).utcOffset(this.timezoneOffset).format('YYYY-MM-DD') : 'invalid'
-				if (!groups[key]) {
-					groups[key] = []
-				}
-				groups[key].push(d)
-			})
-			return Object.entries(groups).map(([key, grp]: [string, ProposalDate[]]) => ({
-				key,
-				label: moment(grp[0].date).utcOffset(this.timezoneOffset).format('dddd, MMMM Do'),
-				dates: grp,
-			}))
-		},
+                                const localMoment = this.momentInTimezone(d.date)
+                                const key = d.date && localMoment.isValid() ? localMoment.format('YYYY-MM-DD') : 'invalid'
+                                if (!groups[key]) {
+                                        groups[key] = []
+                                }
+                                groups[key].push(d)
+                        })
+                        return Object.entries(groups).map(([key, grp]: [string, ProposalDate[]]) => ({
+                                key,
+                                label: this.momentInTimezone(grp[0].date).format('dddd, MMMM Do'),
+                                dates: grp,
+                        }))
+                },
 
 		columnCount() {
 			// time + participants + action
@@ -224,45 +224,17 @@ export default {
 
 	},
 
-	watch: {
-		timezoneId(newZone) {
-			if (newZone) {
-				this.timezoneOffset = this.calculateTimezoneOffset(newZone)
-			}
-		},
-	},
+        methods: {
+                t,
 
-	created() {
-		if (this.timezoneId) {
-			this.timezoneOffset = this.calculateTimezoneOffset(this.timezoneId)
-		}
-	},
+                momentInTimezone(date) {
+                        return getMomentInTimezone(date, this.timezoneId)
+                },
 
-	methods: {
-		t,
-
-		calculateTimezoneOffset(timezoneId) {
-			// Get the timezone offset in minutes
-			try {
-				const now = new Date()
-				const utcDate = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }))
-				const targetDate = new Date(now.toLocaleString('en-US', { timeZone: timezoneId }))
-				return ((utcDate.getTime() - targetDate.getTime()) / (1000 * 60)) * -1
-			} catch (e) {
-				// Fallback to UTC if timezone is invalid
-				return 0
-			}
-		},
-
-		dateTimeSpan(date) {
-			const startDate = moment(date).utcOffset(this.timezoneOffset)
-			const endDate = moment(date).utcOffset(this.timezoneOffset).add(this.proposal.duration, 'minutes')
-
-			const startTime = startDate.format('LT')
-			const endTime = endDate.format('LT')
-
-			return `${startTime} - ${endTime}`
-		},
+                dateTimeSpan(date) {
+                        const durationMinutes = this.proposal?.duration ?? 0
+                        return formatTimeRange(date, durationMinutes, this.timezoneId)
+                },
 
 		dateVoteValue(date: ProposalDate): ProposalDateVote {
 			if (date.id === null) {
@@ -274,14 +246,17 @@ export default {
 			return this.response.dates[date.id].vote
 		},
 
-		formatProposalDateCompact(date) {
-			if (!date) {
-				return ''
-			}
-			// Apply timezone offset and format very compact: "7/8 2PM"
-			const adjustedDate = moment(date).utcOffset(this.timezoneOffset)
-			return adjustedDate.format('M/D LT').replace(':00', '').replace(' ', ' ')
-		},
+                formatProposalDateCompact(date) {
+                        if (!date) {
+                                return ''
+                        }
+                        // Apply timezone handling and format very compact: "7/8 2PM"
+                        const adjustedDate = this.momentInTimezone(date)
+                        if (!adjustedDate.isValid()) {
+                                return ''
+                        }
+                        return adjustedDate.format('M/D LT').replace(':00', '').replace(' ', ' ')
+                },
 
 		participantVoteIcon(participantId, dateId) {
 			const vote = this.participantVote(participantId, dateId)
